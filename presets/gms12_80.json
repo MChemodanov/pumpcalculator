@@ -9,8 +9,8 @@
     "N": 490,
     "eta": 0.65,
     "etaGear": 0.96,
-    "dIn": 400,
-    "dOut": 400,
+    "dIn": 280,
+    "dOut": 280,
     "pumpType": "surface",
     "NPSHr": 4
   },
