@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Калькулятор грунтонасоса земснаряда — Nonius</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="logo.png" alt="Nonius" class="brand-logo" />
+    <div class="brand-text">
+      <div class="brand-title">Калькулятор грунтонасоса</div>
+      <div class="brand-subtitle">оценка производительности землесосного снаряда</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="muted">Nonius · инженерная оценка</span>
+  </div>
+</header>
+
+<main class="grid">
+
+  <!-- LEFT: inputs -->
+  <section class="card inputs">
+    <h2>Исходные данные</h2>
+
+    <fieldset>
+      <legend>Режим работы</legend>
+
+      <div class="row">
+        <label>Тип насоса</label>
+        <div class="seg" data-bind="pumpType">
+          <button type="button" data-val="surface">палубный</button>
+          <button type="button" data-val="submerged" class="active">погружной</button>
+        </div>
+      </div>
+
+      <div class="row" id="rowLframe">
+        <label>Длина рамы L<sub>рамы</sub> <span class="u">м</span> <button class="info-btn" data-f="Lframe" title="откуда значение">i</button></label>
+        <input type="number" id="Lframe" value="14.14" step="0.1" min="3" />
+      </div>
+
+      <div class="row" id="rowAxisDepth">
+        <label>Положение насоса по раме (от оси) <span class="u">м</span> <button class="info-btn" data-f="axisDepth" title="откуда значение">i</button></label>
+        <input type="number" id="axisDepth" value="7.07" step="0.1" min="0" />
+      </div>
+
+      <div class="row">
+        <label>Куда качаем</label>
+        <div class="seg" data-bind="discharge">
+          <button type="button" data-val="pipeline">в пульпопровод</button>
+          <button type="button" data-val="barge" class="active">в шаланду</button>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Параметры насоса</legend>
+
+      <div class="row">
+        <label>Производительность по пульпе <span class="u">м³/ч</span></label>
+        <input type="number" id="Q" value="2700" step="50" min="0" />
+      </div>
+      <div class="row">
+        <label>Напор по воде <span class="u">м вод. ст.</span> <button class="info-btn" data-f="H" title="откуда значение">i</button></label>
+        <input type="number" id="H" value="55" step="1" min="0" />
+      </div>
+      <div class="row">
+        <label>Мощность на валу насоса <span class="u">кВт</span> <button class="info-btn" data-f="N" title="откуда значение">i</button></label>
+        <input type="number" id="N" value="505" step="5" min="0" />
+      </div>
+      <div class="row">
+        <label>КПД насоса <span class="u">—</span> <button class="info-btn" data-f="eta" title="откуда значение">i</button></label>
+        <input type="number" id="eta" value="0.62" step="0.01" min="0.1" max="0.95" />
+      </div>
+      <div class="row">
+        <label>КПД редуктора <span class="u">—</span> <button class="info-btn" data-f="etaGear" title="откуда значение">i</button></label>
+        <input type="number" id="etaGear" value="0.96" step="0.01" min="0.5" max="1.0" />
+      </div>
+      <div class="row">
+        <label>Ø всаса <span class="u">мм</span></label>
+        <input type="number" id="dIn" value="450" step="10" min="50" />
+      </div>
+      <div class="row">
+        <label>Ø нагнетания <span class="u">мм</span></label>
+        <input type="number" id="dOut" value="450" step="10" min="50" />
+      </div>
+    </fieldset>
+
+    <fieldset id="fsPipeline">
+      <legend>Пульпопровод</legend>
+
+      <div class="row">
+        <label>Длина (приведённая) <span class="u">м</span></label>
+        <input type="number" id="L" value="400" step="10" min="0" />
+      </div>
+      <div class="row">
+        <label>Внутренний Ø трубы <span class="u">мм</span></label>
+        <input type="number" id="Dpipe" value="450" step="10" min="50" />
+      </div>
+      <div class="row">
+        <label>Колен 90°</label>
+        <input type="number" id="nB90" value="2" step="1" min="0" />
+      </div>
+      <div class="row">
+        <label>Колен 45°</label>
+        <input type="number" id="nB45" value="1" step="1" min="0" />
+      </div>
+      <div class="row">
+        <label>Глухих отводов</label>
+        <input type="number" id="nDead" value="2" step="1" min="0" />
+      </div>
+      <div class="row">
+        <label>Высота подъёма пульпы <span class="u">м</span></label>
+        <input type="number" id="hLift" value="2" step="0.5" />
+      </div>
+      <div class="row">
+        <label>Шероховатость <span class="u">мм</span></label>
+        <input type="number" id="rough" value="0.5" step="0.1" min="0" />
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Разработка</legend>
+
+      <div class="row">
+        <label>Глубина разработки <span class="u">м</span></label>
+        <input type="number" id="depth" value="10" step="0.5" min="0" />
+      </div>
+
+      <div class="row">
+        <label>Категория грунта</label>
+        <select id="soil">
+          <option value="I">I — илы, торф (рыхлые)</option>
+          <option value="II" selected>II — пески мелкие/средние</option>
+          <option value="III">III — пески крупные, супесь</option>
+          <option value="IV">IV — суглинки, гравелистые пески</option>
+          <option value="V">V — глины, гравий до 40 мм</option>
+          <option value="VI">VI — плотные глины, галечник</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>d₅₀ частиц <span class="u">мм</span></label>
+        <input type="number" id="d50" value="0.30" step="0.05" min="0.01" />
+      </div>
+
+      <div class="row">
+        <label>ρ твёрдого <span class="u">кг/м³</span></label>
+        <input type="number" id="rhoS" value="2650" step="10" min="1500" />
+      </div>
+
+      <div class="row">
+        <label>Коэф. разрыхления k<sub>р</sub></label>
+        <input type="number" id="kr" value="1.20" step="0.01" min="1.0" />
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Эксплуатация</legend>
+
+      <div class="row">
+        <label>Толщина слоя выработки h<sub>сл</sub> <span class="u">м</span> <button class="info-btn" data-f="hLayer" title="рекомендуемые значения">i</button></label>
+        <input type="number" id="hLayer" value="0.5" step="0.05" min="0.05" />
+      </div>
+
+      <div class="row">
+        <label>Коэф. использования времени k<sub>исп</sub> <button class="info-btn" data-f="kUtil" title="рекомендуемые значения">i</button></label>
+        <input type="number" id="kUtil" value="0.75" step="0.01" min="0.1" max="1.0" />
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Целевая концентрация</legend>
+      <div class="row">
+        <label>Объёмная концентрация S <span class="u">%</span></label>
+        <input type="range" id="S" min="1" max="40" step="0.5" value="5" />
+        <output id="Sout">5 %</output>
+      </div>
+      <p class="hint">Слайдер задаёт рабочую точку; в результатах показан допустимый диапазон.</p>
+    </fieldset>
+
+  </section>
+
+  <!-- RIGHT: schematic + results -->
+  <section class="right-col">
+
+    <div class="card schematic">
+      <h2>Схема земснаряда</h2>
+      <div id="schematic"></div>
+      <div class="legend">
+        <span><i class="dot dot-pump"></i>грунтонасос</span>
+        <span><i class="dot dot-frame"></i>подвижная рама</span>
+        <span><i class="dot dot-pipe"></i>пульпопровод / шаланда</span>
+      </div>
+    </div>
+
+    <div class="card results">
+      <h2>Результаты</h2>
+
+      <div class="result-grid" id="results"></div>
+
+      <div class="status" id="statusBox"></div>
+    </div>
+
+    <div class="card formulas-card">
+      <h2>Допущения и источники</h2>
+      <ul class="sources">
+        <li>Юфин А.П. <em>Гидромеханизация</em>. — М.: Стройиздат, 1965.</li>
+        <li>Шкундин Б.М. <em>Землесосные снаряды</em>. — М.: Энергоатомиздат, 1988.</li>
+        <li>Огородников С.П. <em>Гидромеханизация разработки грунтов</em>. — М.: Стройиздат, 1986.</li>
+        <li>Дробаденко В.П. и др. <em>Расчёт и проектирование земснарядов</em>. — М.: Недра, 1996.</li>
+        <li>Durand R., Condolios E. — критическая скорость и потери (используется в Юфине).</li>
+      </ul>
+      <p class="hint">Расчёт инженерно-оценочный. Для проектирования сверять с заводскими H–Q характеристиками насоса и фактическими свойствами грунта.</p>
+    </div>
+
+  </section>
+</main>
+
+<!-- Tooltip popover -->
+<div id="tooltip" class="tooltip" hidden></div>
+
+<script src="calc.js"></script>
+</body>
+</html>
