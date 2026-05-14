@@ -54,6 +54,30 @@ function currentPresetId() {
 }
 function currentPreset() { return PUMP_PRESETS[currentPresetId()] || PUMP_PRESETS.custom; }
 
+// ---- Линейная интерполяция кривой H/N/η по Q ----
+function curveInterp(curve, Q) {
+  if (!curve || !curve.points || curve.points.length === 0) return null;
+  const pts = curve.points;
+  if (Q <= pts[0].Q) return { ...pts[0] };
+  if (Q >= pts[pts.length - 1].Q) return { ...pts[pts.length - 1] };
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    if (Q >= a.Q && Q <= b.Q) {
+      const t = (Q - a.Q) / (b.Q - a.Q);
+      const out = { Q };
+      for (const k of ["H", "N", "eta"]) {
+        if (a[k] != null && b[k] != null) out[k] = a[k] + (b[k] - a[k]) * t;
+      }
+      return out;
+    }
+  }
+  return null;
+}
+function curveQRange(curve) {
+  if (!curve || !curve.points || !curve.points.length) return null;
+  return { Qmin: curve.points[0].Q, Qmax: curve.points[curve.points.length - 1].Q };
+}
+
 // ---- Грунтовые предустановки по категориям (ориентировочно) ----
 const SOILS = {
   "I":   { d50: 0.10, label: "I — илы, торф" },
@@ -882,6 +906,151 @@ function drawSchematic(inp) {
   document.getElementById("schematic").innerHTML = svg;
 }
 
+// ---- График кривой насоса (SVG) ----
+function drawPumpCurve(inp) {
+  const host = document.getElementById("pumpcurve");
+  if (!host) return;
+  const preset = currentPreset();
+  const curve = preset.curve;
+  if (!curve || !curve.points || !curve.points.length) {
+    host.innerHTML = `<div class="hint" style="padding:30px 10px;text-align:center;color:var(--muted)">
+      Для пресета «${preset.name}» кривая не задана. Выберите пресет с кривой.
+    </div>`;
+    return;
+  }
+  const pts = curve.points;
+  const Qmax = pts[pts.length - 1].Q * 1.05;
+  const Hmax = Math.max(...pts.map(p => p.H)) * 1.10;
+  const Nmax = Math.max(...pts.map(p => p.N)) * 1.10;
+
+  const W = 600, H = 280;
+  const ml = 50, mr = 50, mt = 22, mb = 36;
+  const pw = W - ml - mr, ph = H - mt - mb;
+
+  const xOf = Q => ml + (Q / Qmax) * pw;
+  const yH  = h => mt + ph - (h / Hmax) * ph;
+  const yN  = n => mt + ph - (n / Nmax) * ph;
+  const yE  = e => mt + ph - (e / 1.0) * ph;
+
+  const pathFor = (key, yFn) =>
+    "M " + pts.map(p => `${xOf(p.Q).toFixed(1)} ${yFn(p[key]).toFixed(1)}`).join(" L ");
+
+  const Q = +inp.Q;
+  const op = curveInterp(curve, Q);
+  const xQ = xOf(Q);
+  const yQ = op ? yH(op.H) : mt + ph;
+
+  // оси: подписи
+  const xTicks = [];
+  for (let q = 0; q <= Qmax; q += Math.max(500, Math.round(Qmax / 8 / 100) * 100)) {
+    xTicks.push(q);
+  }
+  const yTicksH = [];
+  for (let h = 0; h <= Hmax; h += Math.max(10, Math.round(Hmax / 5 / 5) * 5)) yTicksH.push(h);
+  const yTicksN = [];
+  for (let n = 0; n <= Nmax; n += Math.max(100, Math.round(Nmax / 5 / 50) * 50)) yTicksN.push(n);
+
+  const grid = xTicks.map(q =>
+    `<line x1="${xOf(q)}" y1="${mt}" x2="${xOf(q)}" y2="${mt+ph}" stroke="#1c232c" stroke-width="1"/>`
+  ).concat(yTicksH.map(h =>
+    `<line x1="${ml}" y1="${yH(h)}" x2="${ml+pw}" y2="${yH(h)}" stroke="#1c232c" stroke-width="1"/>`
+  )).join("\n");
+
+  const xLabels = xTicks.map(q =>
+    `<text x="${xOf(q)}" y="${mt+ph+14}" text-anchor="middle" fill="#8b96a3" font-size="10">${q}</text>`
+  ).join("\n");
+  const yLabelsH = yTicksH.map(h =>
+    `<text x="${ml-6}" y="${yH(h)+3}" text-anchor="end" fill="#4cc2ff" font-size="10">${h}</text>`
+  ).join("\n");
+  const yLabelsN = yTicksN.map(n =>
+    `<text x="${ml+pw+6}" y="${yN(n)+3}" text-anchor="start" fill="#ffb454" font-size="10">${n}</text>`
+  ).join("\n");
+
+  const hasEta = pts.some(p => p.eta != null);
+  const etaCurve = hasEta ?
+    `<path d="${pathFor("eta", yE)}" fill="none" stroke="#6fe39a" stroke-width="1.8" stroke-dasharray="4 3"/>` : "";
+
+  const svg = `
+<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="pumpcurveSvg">
+  <!-- сетка -->
+  ${grid}
+  <!-- рамка -->
+  <rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="none" stroke="#2a313c"/>
+  <!-- кривые -->
+  <path d="${pathFor("H", yH)}" fill="none" stroke="#4cc2ff" stroke-width="2.2"/>
+  <path d="${pathFor("N", yN)}" fill="none" stroke="#ffb454" stroke-width="2.2"/>
+  ${etaCurve}
+  <!-- подписи осей -->
+  ${xLabels}
+  ${yLabelsH}
+  ${yLabelsN}
+  <text x="${ml + pw/2}" y="${H-4}" text-anchor="middle" fill="#8b96a3" font-size="11">Q, м³/ч</text>
+  <text x="14" y="${mt + ph/2}" text-anchor="middle" fill="#4cc2ff" font-size="11"
+        transform="rotate(-90 14 ${mt + ph/2})">H, м</text>
+  <text x="${W-14}" y="${mt + ph/2}" text-anchor="middle" fill="#ffb454" font-size="11"
+        transform="rotate(90 ${W-14} ${mt + ph/2})">N, кВт</text>
+  <!-- курсор Q (вертикальная пунктирная) -->
+  <line x1="${xQ}" y1="${mt}" x2="${xQ}" y2="${mt+ph}" stroke="#ff6b6b" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+  <!-- рабочая точка (перетаскиваемая) -->
+  <circle class="op-handle" cx="${xQ}" cy="${yQ}" r="9" fill="#ff6b6b" stroke="#0e1116" stroke-width="2" id="opHandle"/>
+  <!-- подпись рабочей точки -->
+  <text x="${xQ + 12}" y="${yQ - 12}" fill="#ff6b6b" font-size="11">Q=${Math.round(Q)}, H=${op ? op.H.toFixed(1) : '—'} м, N=${op ? Math.round(op.N) : '—'} кВт${op && op.eta != null ? `, η=${(op.eta*100).toFixed(0)}%` : ''}</text>
+</svg>`;
+  host.innerHTML = svg;
+
+  // drag handler
+  const svgEl = document.getElementById("pumpcurveSvg");
+  const handle = document.getElementById("opHandle");
+  if (!handle) return;
+  let dragging = false;
+  const Qrange = curveQRange(curve);
+
+  const setQFromEvent = (e) => {
+    const rect = svgEl.getBoundingClientRect();
+    const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+    const xPxInSvg = (clientX - rect.left) * (W / rect.width);
+    let q = ((xPxInSvg - ml) / pw) * Qmax;
+    q = Math.max(Qrange.Qmin, Math.min(Qrange.Qmax, q));
+    document.getElementById("Q").value = Math.round(q);
+    // сначала подменим H и N по кривой, потом запустим пересчёт
+    syncFromCurve();
+    onAnyChange();
+  };
+
+  handle.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    handle.setPointerCapture(e.pointerId);
+    setQFromEvent(e);
+    e.preventDefault();
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    setQFromEvent(e);
+    e.preventDefault();
+  });
+  handle.addEventListener("pointerup", (e) => {
+    dragging = false;
+    try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+  });
+  handle.addEventListener("pointercancel", () => { dragging = false; });
+}
+
+// При наличии кривой — подменяем H и N в полях по интерполяции
+function syncFromCurve() {
+  const preset = currentPreset();
+  if (!preset.curve) return;
+  const Q = +document.getElementById("Q").value;
+  const op = curveInterp(preset.curve, Q);
+  if (!op) return;
+  // помечаем флагом, что обновление идёт из кривой — чтобы input-обработчик не сбросил пресет в custom
+  __fromCurve = true;
+  document.getElementById("H").value = op.H.toFixed(1);
+  document.getElementById("N").value = Math.round(op.N);
+  __fromCurve = false;
+}
+
+let __fromCurve = false;
+
 // ---- Привязка событий ----
 function bindUI() {
   // сегменты
@@ -907,15 +1076,20 @@ function bindUI() {
   });
   // пресет насоса
   document.getElementById("preset").addEventListener("change", e => applyPumpPreset(e.target.value));
-  // правка любого поля насоса → переключаем пресет в "custom"
-  const presetFields = ["Q","H","N","eta","etaGear","dIn","dOut","axisDepth","Lframe","NPSHr"];
+  // правка любого поля насоса → переключаем пресет в "custom",
+  // но не если изменение пришло из синхронизации с кривой
+  const presetFields = ["H","N","eta","etaGear","dIn","dOut","axisDepth","Lframe","NPSHr"];
   presetFields.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("input", () => {
+      if (__fromCurve) return;
       const sel = document.getElementById("preset");
       if (sel.value !== "custom") sel.value = "custom";
     });
   });
+  // Q отдельно: правка Q вручную не сбрасывает пресет, а лишь подменяет H/N по кривой
+  const qEl = document.getElementById("Q");
+  if (qEl) qEl.addEventListener("input", () => syncFromCurve());
   // правка переключателя «тип насоса» тоже переключает в custom
   document.querySelector('.seg[data-bind="pumpType"]').addEventListener("click", () => {
     const sel = document.getElementById("preset");
@@ -952,6 +1126,7 @@ function onAnyChange() {
   const range = feasibleRange(inp);
   render(inp, r, range);
   drawSchematic(inp);
+  drawPumpCurve(inp);
 }
 
 // ---- Старт ----

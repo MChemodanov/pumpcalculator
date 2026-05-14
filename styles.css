@@ -225,6 +225,23 @@ output { color: var(--accent); font-weight: 600; text-align: right; min-width: 6
 .dot-pump  { background: var(--accent); }
 .dot-frame { background: var(--warn); }
 .dot-pipe  { background: var(--accent-2); }
+.dot-h     { background: #4cc2ff; }
+.dot-n     { background: #ffb454; }
+.dot-e     { background: #6fe39a; }
+.dot-op    { background: #ff6b6b; }
+
+/* График кривой насоса */
+.pumpcurve svg { width: 100%; height: auto; display: block; user-select: none; touch-action: none; }
+.pumpcurve .curve-hint { color: var(--muted); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.pumpcurve .curve-legend {
+  display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px;
+  font-size: 12px; color: var(--muted);
+}
+.pumpcurve .curve-legend .dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px;
+}
+.pumpcurve .op-handle { cursor: ew-resize; }
+.pumpcurve .op-handle:hover { filter: brightness(1.2); }
 
 .sources { padding-left: 18px; margin: 0; }
 .sources li { margin: 4px 0; color: var(--muted); font-size: 13px; }
