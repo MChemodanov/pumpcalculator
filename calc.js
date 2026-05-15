@@ -54,24 +54,66 @@ function currentPresetId() {
 }
 function currentPreset() { return PUMP_PRESETS[currentPresetId()] || PUMP_PRESETS.custom; }
 
-// ---- Линейная интерполяция кривой H/N/η по Q ----
+// ---- Сплайн-интерполяция кривой (Catmull-Rom) H/N/η по Q ----
 function curveInterp(curve, Q) {
   if (!curve || !curve.points || curve.points.length === 0) return null;
   const pts = curve.points;
   if (Q <= pts[0].Q) return { ...pts[0] };
   if (Q >= pts[pts.length - 1].Q) return { ...pts[pts.length - 1] };
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i], b = pts[i + 1];
-    if (Q >= a.Q && Q <= b.Q) {
-      const t = (Q - a.Q) / (b.Q - a.Q);
-      const out = { Q };
-      for (const k of ["H", "N", "eta"]) {
-        if (a[k] != null && b[k] != null) out[k] = a[k] + (b[k] - a[k]) * t;
-      }
-      return out;
-    }
+  // найти сегмент
+  let i = 0;
+  for (; i < pts.length - 1; i++) {
+    if (Q >= pts[i].Q && Q <= pts[i + 1].Q) break;
   }
-  return null;
+  const p0 = pts[Math.max(0, i - 1)];
+  const p1 = pts[i];
+  const p2 = pts[i + 1];
+  const p3 = pts[Math.min(pts.length - 1, i + 2)];
+  const t = (Q - p1.Q) / (p2.Q - p1.Q);
+  const t2 = t * t, t3 = t2 * t;
+  const out = { Q };
+  for (const k of ["H", "N", "eta"]) {
+    if (p1[k] == null || p2[k] == null) continue;
+    const y0 = (p0[k] != null) ? p0[k] : p1[k];
+    const y3 = (p3[k] != null) ? p3[k] : p2[k];
+    const y1 = p1[k];
+    const y2 = p2[k];
+    // Catmull-Rom (центрипетальная разновидность 0.5)
+    out[k] = 0.5 * (
+      2 * y1 +
+      (-y0 + y2) * t +
+      (2 * y0 - 5 * y1 + 4 * y2 - y3) * t2 +
+      (-y0 + 3 * y1 - 3 * y2 + y3) * t3
+    );
+  }
+  return out;
+}
+
+// SVG-путь по точкам через кубический Безье из Catmull-Rom
+function smoothSvgPath(points, xKey, yKey, xOf, yOf) {
+  const pts = points.filter(p => p[yKey] != null);
+  if (pts.length < 2) return "";
+  if (pts.length === 2) {
+    return `M ${xOf(pts[0][xKey]).toFixed(1)} ${yOf(pts[0][yKey]).toFixed(1)} ` +
+           `L ${xOf(pts[1][xKey]).toFixed(1)} ${yOf(pts[1][yKey]).toFixed(1)}`;
+  }
+  let d = `M ${xOf(pts[0][xKey]).toFixed(1)} ${yOf(pts[0][yKey]).toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || pts[i + 1];
+    const x0 = xOf(p0[xKey]), y0 = yOf(p0[yKey]);
+    const x1 = xOf(p1[xKey]), y1 = yOf(p1[yKey]);
+    const x2 = xOf(p2[xKey]), y2 = yOf(p2[yKey]);
+    const x3 = xOf(p3[xKey]), y3 = yOf(p3[yKey]);
+    const c1x = x1 + (x2 - x0) / 6;
+    const c1y = y1 + (y2 - y0) / 6;
+    const c2x = x2 - (x3 - x1) / 6;
+    const c2y = y2 - (y3 - y1) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  }
+  return d;
 }
 function curveQRange(curve) {
   if (!curve || !curve.points || !curve.points.length) return null;
@@ -932,8 +974,8 @@ function drawPumpCurve(inp) {
   const yN  = n => mt + ph - (n / Nmax) * ph;
   const yE  = e => mt + ph - (e / 1.0) * ph;
 
-  const pathFor = (key, yFn) =>
-    "M " + pts.map(p => `${xOf(p.Q).toFixed(1)} ${yFn(p[key]).toFixed(1)}`).join(" L ");
+  // Сглаженные кривые через Catmull-Rom → SVG cubic Bezier
+  const pathFor = (key, yFn) => smoothSvgPath(pts, "Q", key, xOf, yFn);
 
   const Q = +inp.Q;
   const op = curveInterp(curve, Q);
